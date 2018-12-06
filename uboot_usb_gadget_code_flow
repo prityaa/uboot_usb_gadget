@@ -1,0 +1,57 @@
+caller				function 			dest_file
+cmd/usb_ram_storage.c
+cmd/usb_ram_storage.c 		drivers/usb/gadget/g_dnl.c	g_dnl_register("rs");		To register new function
+g_dnl_register			usb_composite_register		drivers/usb/gadget/composite.c
+usb_gadget_register_driver	usb_lowlevel_init		drivers/usb/host/ehci-hcd.c		Register controller as device
+usb_gadget_register_driver	ci_udc_probe			drivers/usb/gadget/composite.c
+DECLARE_GADGET_BIND_CALLBACK	fsg_ram_add			drivers/usb/gadget/f_rmstor.c	calls function's add callback
+usb_gadget_register_driver	driver->bind			drivers/usb/gadget/f_mass_storage.c	calls function bind callback
+
+After calling bind of the function
+
+usb_gadget_handle_interrupts	udc_irq				drivers/usb/gadget/ci_udc.c		continously checking for usb status reg
+udc_irq				stop_activity			drivers/usb/gadget/ci_udc.c		error out any pending reqs if (n & STS_URI)
+udc_irq				setting maxpacket_size		drivers/usb/gadget/ci_udc.c		(n & STS_PCI)if sts's 4, chngd to high speed
+udc_irq				handle_setup			drivers/usb/gadget/ci_udc.c		handle to all type of requests from host
+													if r.wLength=0 (no data stage), handshacking
+udc_irq				controller.driver->setup	drivers/usb/gadget/composite.c		calls composite's setup callback
+composite_setup			f->set_alt and f->setup		drivers/usb/gadget/f_ram_storage.c	calls function;s setup and altset callbacks
+udc_irq				handle_ep_complete		drivers/usb/gadget/ci_udc.c		checks data stge/not,if completed, handshaking
+													by reversing endpoints
+
+
+
+
+host request
+============
+suspend					sends "suspend" as host starts initing tranx.
+resets and -- portchange 2 High		resets port and changes the mode(high or fast)
+GET_DESCRIPTOR				sends get disc request
+SET_ADDRESS				sends rqst to set addr
+
+
+Codeflow :
+========
+        1 . HOST :
+        do_usb  cmd/usb.c
+        do_usb_start
+        usb_init        common/usb.c
+        usb_low_level_init      drivers/usb/host/ehci_hcd.c
+        ehci_hcd_init   drivers/usb/host/ehci_zynq.c
+
+        2 . GADGET :
+        do_usb_mass_storage     cmd/usb_mass_storage.c
+        g_dnl_register  drivers/usb/gadget/g_dnl.c
+        usb_composite_register  drivers/usb/gadget/composite.c
+        usb_gadget_register_driver      drivers/usb/gadget/ci_udc.c
+        usb_lowlevel_init       drivers/usb/host/ehci-hcd.c
+
+
+Test on board
+=================
+        1 . set jumpers for sdboot
+        2 . usb start on u-boot console
+        3 . usb tree - after inserting sd with type-a to female usb cable.
+        4 . read file fatload usb 1:1 0x10000000 BOOT.BIN
+
+
